@@ -21,6 +21,7 @@ This `API` manages `users` and `admin` dashboards.
 - find the API documentation in [https://documenter.getpostman.com/view/32735723/2sA35LWff8]
 
 # Folder Structure
+```
 beautyflux-backend
 └───src
     ├───config
@@ -31,3 +32,4 @@ beautyflux-backend
     ├───services
     ├───utils
     └───views
+```
