@@ -179,6 +179,8 @@ exports.login = async (req, res, next) => {
                 firstname:userExist.firstname,
                 lastname:userExist.lastname,
                 address:userExist.address,
+                stateoforigin:userExist.stateoforigin,
+                dateofbirth:userExist.dateofbirth,
             },
             accessToken,
             refreshToken,
@@ -187,6 +189,71 @@ exports.login = async (req, res, next) => {
         next(error)
     }
 }
+
+
+
+
+
+
+
+exports.adminLogin = async (req, res, next) => {
+    try {
+        let token = req.headers?.cookie?.split("=")[1];
+        const {username, password} = req.body;
+        if(!username) return res.status(400).json({error: "username is required"});
+        if(!password) return res.status(400).json({error: "password is required"});
+
+        const userExist = await AccountModel.findOne({username});
+        if(!userExist) return next(APIError.notFound("User not found"));
+
+
+        const checkUser = compareSync(password, userExist.password)
+        if(!checkUser) return res.status(400).json({error: "Incorrect password"})
+        if(userExist.state === "deactivated") return next(APIError.unauthorized("Account has been deactivated"))
+
+        if (token) return res.status(403).json({error: "You are already logged in"})
+        //authentication
+         const payload = {
+            id: userExist._id.toString(),
+            email:userExist.email,
+            role: userExist.type
+        };
+        // console.log(payload)
+         const accessToken = jwt.sign(payload,config.ACCESS_TOKEN_SECRET,{expiresIn:"15m"});
+         const refreshToken = jwt.sign(payload, config.REFRESH_TOKEN_SECRET,{expiresIn:"30m"});
+        //  userExist.refreshToken = [...userExist.refreshToken, refreshToken]
+        userExist.refreshToken.push(refreshToken)
+        userExist.save();
+        res.cookie(
+            "bflux", accessToken, {
+                httpOnly:false,
+                secure:true,
+                samesite: "none",
+                maxAge: 60*60 * 1000
+            }
+        )
+
+         return res.status(200).json({
+            // success: true,
+            msg: "login successful",
+            user:{
+                username: userExist.username,
+                email: userExist.email,
+                firstname:userExist.firstname,
+                lastname:userExist.lastname,
+                address:userExist.address,
+            },
+            accessToken,
+            refreshToken,
+         })
+    }catch(error){
+        next(error)
+    }
+}
+
+
+
+
 
 
 
@@ -306,7 +373,7 @@ exports.userAccounts = async (req, res, next) => {
 
 
 
-exports.logOut = async (req, res, next) => {
+exports.logout = async (req, res, next) => {
     try{
         let token = req.headers?.authorization?.split(" ")[1];
         if(!token) token = req.cookie?.bflux;
@@ -341,6 +408,8 @@ exports.logOut = async (req, res, next) => {
             }
             if (err || foundUser._id.toString() !== decoded.id) return next(APIError.unauthenticated("Token expired"));
         });
+        foundUser.refreshToken = [...newRefreshTokenArr];
+                foundUser.save();
         res.clearCookie("bflux");
         res
         .status(200)
@@ -423,14 +492,10 @@ exports.handleRefreshToken = async (req, res, next) => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+exports.userCheckToken = async (req, res, next) =>{
+    try{
+        res.status(200).json({success: true, msg: "token is valid"});
+    }catch(error){
+        next(error)
+    }
+}
